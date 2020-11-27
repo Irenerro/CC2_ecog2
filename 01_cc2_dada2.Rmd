@@ -1,0 +1,199 @@
+---
+title: "01_cc2_dada2"
+author: Irene Romero Rodríguez
+output:
+  github_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+# Préparation
+
+Nous allons sur ce document traiter grâce au package de R DADA2 les données de la rade de Brest pour ensuite pouvoir faire un analyse de données grâce au package phyloseq. Nous avons obtenu les données grâce au .Rmd cc2_donnees. 
+
+```{r}
+dir.create("donnees")
+```
+
+Nous avons crée un dossier "donnees" où l'on va déposer toutes les données pour l'étude, celles de St_Stratif_10sept14 et St_Stratif_11mars15. Cela va être fait sur le terminal (donc en bash) grâce à la commande mv. Ensuite, on crée un chemin pour arriver à ce dossier.
+
+```{r}
+path <- "~/CC2_ecog2/donnees"
+list.files(path)
+```
+
+Nous allons maintenant séparer les reads forward (R1) et reverse (R2) sur des objets destinés à ce but.Les données ont le format Station_profondeur_date_R1.fastq (ou R2). Nous allons donc assigner au nouveau objet la liste d'éléments trouvables à partir de path et contenant le pattern _R1.fastq pour les read forward et les _R2.fastq pour les reverse.
+
+```{r}
+fnFs <- sort(list.files(path, pattern="_R1.fastq", full.names = TRUE))
+fnRs <- sort(list.files(path, pattern="_R2.fastq", full.names = TRUE))
+
+sample.names <- sapply(strsplit(basename(fnFs), "_R"), `[`, 1)
+fnFs
+sample.names
+```
+
+# Profils de qualité
+
+Nous allons tracer maintenant les profils de qualité de tous les échantillons afin d'évaluer quel niveau de filtrage et de trimming il faudra faire par la suite.
+
+```{r}
+plotQualityProfile(fnFs[1:11])
+```
+
+En ce qui concerne les échantillons forward, on observe que le score de qualité est globalement bon, on voit une légère décroissance de la qualité vers la fin de la séquence (aux alentours de 230). Cela est logique du fait qu'avec la méthode Illumina la fin du séquençage tends à diminuer en qualité. 
+
+```{r}
+plotQualityProfile(fnRs[1:11])
+```
+
+Pour les séquences R2 ou reverse, on observe que le score de qualité est bien plus bas à partir de la position 130, par rapport aux séquences forward. Ce score de qualité plus faible diminue de façon progressive jusqu'à la fin de la séquence. Il va donc falloir faire un trimming important sur les séquences des R2. 
+
+# Trimming et filtrage des séquences
+
+Nous travaillons ici avec des séquences de la région hypervariable V4V5 de l'ARN 16S. Cette région mesure environ 390pb. Maintenant on va effectuer des "découpages" dans les read afin d'améliorer le score global. Cependant pour obtenir la séquence finale nous allons devoir joindre les reads et on va avoir besoin d'un chevauchement afin de conserver la continuité de la séquence. Pour cela on doit donc tenir en compte la taille des read et de ce que l'on va découper, mais aussi de la taille des primers (21nt), présents sur les séquences R1. 
+
+Nous allons commencer par créer des dossiers où l'on va placer les séquences filtrées:
+
+```{r}
+filtFs <- file.path(path, "filtered", paste0(sample.names, "_F_filt.fastq.gz"))
+filtRs <- file.path(path, "filtered", paste0(sample.names, "_R_filt.fastq.gz"))
+names(filtFs) <- sample.names
+names(filtRs) <- sample.names
+sample.names
+```
+
+Ensuite on procède à filtrer et trim les séquences. En fonction des résultats vus sur les graphiques des scores de qualité on décide ne pas modifier les R1 sauf pour enlever le primer. Ainsi on aura des reads de 250-21= 229 nt. Sachant qu'on a besoin, pour qu'il y ait chevauchement, d'un total de environ 400-410nt. Les séquences R2 commencent à avoir une baisse de la qualité du score aux alentours de la position 130, cependant la grosse diminution commence à partir de la position 15 voir 170. Si on "coupe" les séquences R2 au niveau de la position 170, nous obtenons à la fin des séquences de 229+170= 399pb. Cependant nous avons besoin d'une séquence légèrement plus longue, ainsi nous allons sacrifier un peu de qualité sur le score de la séquence afin de pouvoir continuer l'étude. Nous choisissons donc de couper au niveau de la position 180. Comme les primers doivent être enlévés uniquement des séquences R1 nous allons utiliser la fonction filterAndTrim d'une part pour fnFs (R1) en effectuant un trimLeft; et d'autre part pour fnFs sans effectuer ce deuxième trim.
+
+```{r}
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(250,180), trimLeft = c(21,0),
+              maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
+              compress=TRUE, multithread=TRUE)
+
+head(out)
+```
+
+# Apprentisage des erreurs.
+
+La méthode leanErrors apprend du modèle d’erreur à partir des données en alternant l’estimation des taux d’erreur et inférence (conclusion) de la composition de l’échantillon jusqu’à ce qu’ils convergent en une solution conjointe. L’algorithme doit partir d’une base ou tentative initiale sur combien d’erreurs possibles il peut y avoir dans les données utilisées. On applique cette méthode sur les reads forward puis sur les reverse:
+
+```{r}
+errF <- learnErrors(filtFs, multithread=TRUE)
+errR <- learnErrors(filtRs, multithread=TRUE)
+```
+
+Cela nous permet d'avoir un apperçu sur l'estimation d'erreurs présent sur nos séquences. 
+On crée ensuite un graphique à partir de ces données pour les reads 1 et 2 afin d'estimer sur quelle base on a plus d'erreurs. 
+
+### Estimation pour les R1:
+
+```{r}
+plotErrors(errF, nominalQ=TRUE)
+```
+
+
+
+### Estimation pour les R2:
+
+```{r}
+plotErrors(errR, nominalQ=TRUE)
+```
+
+
+## Séquences répétées.
+
+On analyse la quantité de séquences répetées dans nos données, tout d'abord pour les R1:
+
+```{r}
+dadaFs <- dada(filtFs, err=errF, multithread=TRUE)
+```
+
+Ensuite pour les R2:
+
+```{r}
+dadaRs <- dada(filtRs, err=errF, multithread=TRUE)
+```
+
+Grâce à ces données on peut estimer la quantité de séquences uniques trouvées entre les différents reads. Cependant ces séquences uniques doivent maintenant être merged, c'est à dire, on doit trouver les R1 et les R2 correspondants, les superposer et à partir du chevauchement entre reads définir des contigs soit les différentes séquences permettant de trouver d'une part l'abondance d'espèces différentes en fonction de la variabilité; d'autre part, ça va nous permettre de faire l'assignation taxonomique et donc identifier à quelles bactéries correspondent ces séquences.
+
+# Alignement des R1 et les R2 pour la création de contigs.
+
+On va vérifier que l'on a bien le même nombre d'échantillons dans chaque objet (dadaFs et dadaRs et leur données filtrées respectivement).
+
+```{r}
+length(dadaFs)
+length(filtFs)
+length(dadaRs)
+length(filtRs)
+```
+
+On a bien 11 ce qui correspond à notre nombre d'échantillons. Nous pouvons maintenant lier nos reads et créer les contigs qui vont permettre d'obtenir les séquences des ARN16S trouvés dans nos échantillons.
+
+```{r}
+mergers <- mergePairs(dadaFs, filtFs, dadaRs, filtRs, verbose=TRUE)
+```
+
+Les résultats nous indiquent, par exemple pour la première ligne que l'on a réussi à chevaucher 114 882 séquences, dont 8 120 sont des séquences uniques, à partir des 143 786 reads avec, 29 250 paires, des données d'étude.
+
+```{r}
+head(mergers[[1]])
+```
+
+Sur cet apperçu on peut voir les six premières séquences obtenues sur l'échantillon 1. On ajoute ça sur ce script de façon illustrative, mais on peut remarquer que ces séquences sont très similaires et différent par très peu de nucléotides, cela pourrait montrer des erreurs de séquençage ponctuels. On peut voir tout de même l'abondance de ces séquences au sein de l'échantillon. 
+
+# Construction de la table d'observation
+
+```{r}
+seqtab <- makeSequenceTable(mergers)
+dim(seqtab)
+```
+
+
+```{r}
+table(nchar(getSequences(seqtab)))
+```
+
+
+
+# Elimination des chimères.
+
+
+
+```{r}
+seqtab.nochim <- removeBimeraDenovo(seqtab, method="consensus", multithread=TRUE, verbose=TRUE)
+dim(seqtab.nochim)
+```
+
+
+
+```{r}
+sum(seqtab.nochim)/sum(seqtab)
+```
+
+# Bilan des filtres de qualité
+
+
+```{r}
+getN <- function(x) sum(getUniques(x))
+track <- cbind(out, sapply(dadaFs, getN), sapply(dadaRs, getN), sapply(mergers, getN), rowSums(seqtab.nochim))
+
+colnames(track) <- c("input", "filtered", "denoisedF", "denoisedR", "merged", "nonchim")
+rownames(track) <- sample.names
+head(track)
+```
+
+
+
+# Assignation taxonomique.
+
+
+
+
+
+
+
+
+
+
+
+

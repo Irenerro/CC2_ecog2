@@ -68,7 +68,7 @@ sample.names
 Ensuite on procède à filtrer et trim les séquences. En fonction des résultats vus sur les graphiques des scores de qualité on décide ne pas modifier les R1 sauf pour enlever le primer. Ainsi on aura des reads de 250-21= 229 nt. Sachant qu'on a besoin, pour qu'il y ait chevauchement, d'un total de environ 400-410nt. Les séquences R2 commencent à avoir une baisse de la qualité du score aux alentours de la position 130, cependant la grosse diminution commence à partir de la position 15 voir 170. Si on "coupe" les séquences R2 au niveau de la position 170, nous obtenons à la fin des séquences de 229+170= 399pb. Cependant nous avons besoin d'une séquence légèrement plus longue, ainsi nous allons sacrifier un peu de qualité sur le score de la séquence afin de pouvoir continuer l'étude. Nous choisissons donc de couper au niveau de la position 180. Comme les primers doivent être enlévés uniquement des séquences R1 nous allons utiliser la fonction filterAndTrim d'une part pour fnFs (R1) en effectuant un trimLeft; et d'autre part pour fnFs sans effectuer ce deuxième trim.
 
 ```{r}
-out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(250,200), trimLeft = c(21,21),
+out <- filterAndTrim(fnFs, filtFs, fnRs, filtRs, truncLen=c(250,190), trimLeft = c(21,21),
               maxN=0, maxEE=c(2,2), truncQ=2, rm.phix=TRUE,
               compress=TRUE, multithread=TRUE)
 

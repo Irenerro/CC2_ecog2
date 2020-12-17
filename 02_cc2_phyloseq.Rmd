@@ -1,0 +1,123 @@
+---
+title: "02_cc2_phyloseq"
+author: Irene Romero Rodríguez
+output:
+  github_document:
+    toc: TRUE
+    toc_depth: 3
+---
+
+```{r}
+library(rmarkdown)
+library(knitr)
+load("~/CC2_ecog2/envmt_dada2cc2.RData")
+```
+
+```{r}
+library(rmarkdown)
+library(knitr)
+library(phyloseq); packageVersion("phyloseq")
+library(Biostrings); packageVersion("Biostrings")
+library(ggplot2); packageVersion("ggplot2")
+library(dada2)
+library(DECIPHER)
+library(phangorn)
+```
+
+# Création objet phyloseq
+
+```{r}
+samples.out <- rownames(seqtab.nochim)
+depth <- sapply(strsplit(samples.out, "_"), `[`, 2)
+day <- sapply(strsplit(samples.out, "_"), `[`, 3)
+samdf <- data.frame(Depth=depth, Day=day)
+rownames(samdf) <- samples.out
+```
+
+
+```{r}
+ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+               sample_data(samdf), 
+               tax_table(taxa))
+```
+
+```{r}
+dna <- Biostrings::DNAStringSet(taxa_names(ps))
+names(dna) <- taxa_names(ps)
+ps <- merge_phyloseq(ps, dna)
+taxa_names(ps) <- paste0("ASV", seq(ntaxa(ps)))
+ps
+```
+
+# Alpha diversité
+
+```{r}
+plot_richness(ps, x="Day", measures=c("Shannon", "Simpson"), color="Depth")
+```
+
+```{r}
+depth<- sapply(strsplit(depth, "1"),`[`,1)
+depth<- sapply(strsplit(depth, "2"),`[`,1)
+depth<- sapply(strsplit(depth, "3"),`[`,1)
+print (depth)
+samdf <- data.frame(Depth=depth, Day=day)
+rownames(samdf) <- samples.out
+
+ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
+               sample_data(samdf), 
+               tax_table(taxa))
+plot_richness(ps, x="Day", measures=c("Shannon", "Simpson"), color="Depth")
+```
+
+# Ordinations
+
+```{r}
+ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
+ord.nmds.bray <- ordinate(ps.prop, method="NMDS", distance="bray")
+```
+
+```{r}
+plot_ordination(ps.prop, ord.nmds.bray, color="Day", shape="Depth", title="Bray NMDS")
+```
+
+
+```{r}
+library(gridExtra)
+top20 <- names(sort(taxa_sums(ps), decreasing=TRUE))[1:20]
+ps.top20 <- transform_sample_counts(ps, function(OTU) OTU/sum(OTU))
+ps.top20 <- prune_taxa(top20, ps.top20)
+Genusplot <- plot_bar(ps.top20, x="Day", fill="Genus") + facet_wrap(~Depth, scales="free_x")
+Familyplot <- plot_bar(ps.top20, x="Day", fill="Family") + facet_wrap(~Depth, scales="free_x")
+print (Family)
+
+``` 
+
+```{r}
+print(Genusplot)
+```
+
+
+# Filtrage taxonomique
+
+```{r}
+rank_names(ps)
+table(tax_table(ps)[, "Phylum"], exclude = NULL)
+```
+```{r}
+ps <- subset_taxa(ps, !is.na(Phylum) & !Phylum %in% c("", "uncharacterized"))
+```
+
+```{r}
+prevdf = apply(X = otu_table(ps),
+               MARGIN = ifelse(taxa_are_rows(ps), yes = 1, no = 2),
+               FUN = function(x){sum(x > 0)})
+# Add taxonomy and total read counts to this data.frame
+prevdf = data.frame(Prevalence = prevdf,
+                    TotalAbundance = taxa_sums(ps),
+                    tax_table(ps))
+plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
+```
+
+
+
+

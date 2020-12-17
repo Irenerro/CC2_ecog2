@@ -14,6 +14,7 @@ Nous allons sur ce document traiter grâce au package de R DADA2 les données de
 ```{r}
 dir.create("donnees")
 library(dada2)
+library(Rcpp)
 library(ggplot2)
 ```
 
@@ -193,6 +194,7 @@ taxa.print <- taxa # Removing sequence rownames for display only
 rownames(taxa.print) <- NULL
 head(taxa.print)
 ```
+
 
 
 

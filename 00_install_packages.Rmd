@@ -1,0 +1,93 @@
+---
+title: "00_install_packages"
+
+output: github_document:
+    
+---
+# update VM configuration
+``` {bash}
+sudo apt-get update -y 
+sudo apt-get install -y libbz2-dev
+sudo apt-get install -y liblzma-dev
+```
+
+
+#package install
+Sur l'adresse suivante il y a les infos pour installer le package DADA2:
+Following instruction on https://benjjneb.github.io/dada2/dada-installation.html
+
+```{r package install}
+if (!requireNamespace("BiocManager", quietly = TRUE))
+  install.packages("BiocManager")
+BiocManager::install(version = '3.11')
+BiocManager::install("dada2", version = "3.11")
+```
+BiocManager permet d'installer des outils de bioinformatique. Mais pour cela faut déjà installer BiocManager en premier. On installe donc BiocManager, et ensuite le package DADA2
+```{r}
+library(dada2); packageVersion("dada2")
+```
+
+```{bash}
+sudo apt-get install libglpk-dev 
+```
+
+```{r}
+BiocManager::install("phyloseq")
+```
+
+```{r}
+BiocManager::install("phangorn")
+BiocManager::install("DECIPHER")
+```
+```{r}
+install.packages("gridExtra")
+```
+
+
+Installation des packages: création liste des packages à télécharger
+```{r}
+.cran_packages <- c( "shiny","miniUI", "caret", "pls", "e1071", "ggplot2", "randomForest", "dplyr", "ggrepel", "nlme", "devtools",
+                  "reshape2", "PMA", "structSSI", "ade4",
+                  "ggnetwork", "intergraph", "scales")
+.github_packages <- c("jfukuyama/phyloseqGraphTest")
+.bioc_packages <- c("genefilter", "impute")
+```
+
+```{bash}
+wget https://zenodo.org/record/3986799/files/silva_nr99_v138_wSpecies_train_set.fa.gz
+```
+
+```{bash}
+wget https://zenodo.org/record/3986799/files/silva_species_assignment_v138.fa.gz
+```
+
+```{r}
+install.packages(.cran_packages)
+devtools::install_github(.github_packages)
+BiocManager::install(.bioc_packages)
+```
+```{r}
+```
+
+
+```{bash}
+wget https://cran.r-project.org/src/contrib/Archive/structSSI/structSSI_1.1.1.tar.gz
+```
+```{r}
+library(devtools)
+install_local("./structSSI_1.1.1.tar.gz")
+```
+
+```{r}
+install.packages("rmarkdown")
+install.packages("knitr")
+```
+
+```{r}
+install.packages("usethis")
+```
+```{r}
+library(usethis)
+use_git_config(user.name = "Irenerro", user.email = "romeroirenelfm@gmail.com")
+```
+

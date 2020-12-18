@@ -26,6 +26,8 @@ library(phangorn)
 
 # Création objet phyloseq
 
+A partir des données triées sur la partie DADA2, nous allons maintenant créer un objet phyloseq. Cet objet phyloseq va contenir une table de données dans laquelle on peut voir les informations des séquences des échantillons en fonction de la profondeur et du jour de l'échantillonnage. 
+
 ```{r}
 samples.out <- rownames(seqtab.nochim)
 depth <- sapply(strsplit(samples.out, "_"), `[`, 2)
@@ -34,6 +36,7 @@ samdf <- data.frame(Depth=depth, Day=day)
 rownames(samdf) <- samples.out
 ```
 
+Cet objet phyloseq on va le créer de façon à contenir une table d'OTU; une table de données (jour et profondeur d'échantillonnage) et une table avec l'assignation taxonomique. 
 
 ```{r}
 ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE), 
@@ -41,19 +44,28 @@ ps <- phyloseq(otu_table(seqtab.nochim, taxa_are_rows=FALSE),
                tax_table(taxa))
 ```
 
+On procede maintenant à attribuer des string chains plus courtes aux noms des dossiers afin d’avoir plus de facilité pour travailler sur des tableaux par exemple. On veut cependant garder la séquence en entier, pour cela on va garder la séquence sur le refseq slot de l’objet et renommer le taxa pour un nom plus court:
+
 ```{r}
 dna <- Biostrings::DNAStringSet(taxa_names(ps))
 names(dna) <- taxa_names(ps)
 ps <- merge_phyloseq(ps, dna)
 taxa_names(ps) <- paste0("ASV", seq(ntaxa(ps)))
+
 ps
 ```
 
 # Alpha diversité
 
+Afin d'étudier la diversité relative aux échantillons de chaque profondeur et de chaque jour, nous allons tracer des graphiques permettant d'observer la richesse de chaque un des échantillons. Ce graphique va être tracé deux fois, une fois à partir de l'indice de Shannon et une deuxième avec l'indice de Simpson afin de pouvoir comparer les données. 
+
 ```{r}
 plot_richness(ps, x="Day", measures=c("Shannon", "Simpson"), color="Depth")
 ```
+
+Ces deux graphiques nous montrent un résultat similaire. On observe que pour les échantillons effectués en septembre 2014 on a trois groupes différents. En effet on constate que les échantillons en surface ont une richesse beaucoup moins abondante que ceux trouvés en profondeur, qui ont la richesse la plus abondante (donc plus de diversité). Les échantillons prélévés à une profondeur moyenne se situent entre les deux abondances. Cependant pour mars 2015 on ne retrouve qu'un seul groupe, de façon indifférente à la profondeur d'échantillonnage, contenant une diversité élevée et assimilable à celle retrouvée en profondeur en septembre 2014. 
+
+On constate que peut importe l'échantillon de fond (1, 2 ou 3); moyen (1,2) ou surface (1,2) les résultats sont similaires. Nous allons donc regrouper tous les échantillons de fond (1 et 2) sur un groupe "fond". Et pareil pour les autres profondeurs. 
 
 ```{r}
 depth<- sapply(strsplit(depth, "1"),`[`,1)
@@ -71,15 +83,20 @@ plot_richness(ps, x="Day", measures=c("Shannon", "Simpson"), color="Depth")
 
 # Ordinations
 
+Nous avons voulu sur cette partie essayer de créer une ordination basée sur la distance de Bray Curtis et à partir de la méthode NMDS afin d'essayer d'observer des éventuels groupes dépendant de la profondeur et de la date de prélevement des échantillons. Ces groupes étant définis par les abondances rélatives des OTUs regroupées sur l'objet phyloseq. 
+
 ```{r}
-ps.prop <- transform_sample_counts(ps, function(otu) otu/sum(otu))
-ord.nmds.bray <- ordinate(ps.prop, method="NMDS", distance="bray")
+ordination_test <- transform_sample_counts(ps, function(otu) otu/sum(otu))
+ord.nmds.bray <- ordinate(ordiantion_test, method="NMDS", distance="bray")
 ```
 
 ```{r}
-plot_ordination(ps.prop, ord.nmds.bray, color="Day", shape="Depth", title="Bray NMDS")
+plot_ordination(ps.prop, ord.nmds.bray, color="Day", shape="Depth", title="Bray NMDS") + geom_point(size=4)
 ```
 
+Le fait de travailler avec peu d'échantillons n'a pas permis de tracer une ordination par la méthode NMDS très effective... Cependant on peut observer qu'au sein des échantillons de mars on confirme ne retrouver qu'un seul groupe, alors que pour les données de septembre 2014 il semblerait avoir des sous groupes distincts. 
+
+On trace par la suite des histogrammes permettant de voir l'abondance des 20 familles et des 20 genres les plus abondants au sein des échantillons en fonction de la profondeur d'échantillonnage et pour chaque une des deux dates d'échantillonnage. Cela permet de voir encore une fois l'alpha diversité de nos échantillons mais nous permet tout de même de comparer un peu les possibles différences présentes au sein de l'échantillon afin d'essayer de déterminer des possibles marqueurs biologiques. Nous aurions pu le faire avec les espèces afin de trouver des biomarqueurs expliquant la différence cependant l'assignation d'espèces ne donnait pas beaucoup d'informations.
 
 ```{r}
 library(gridExtra)
@@ -92,6 +109,12 @@ print (Family)
 
 ``` 
 
+En ce qui concerne les familles on constate tout d'abord que pour les prélévements de septembre 2014 on observe une présence importante de Cyanobiaceae qui n'est pas présente dans les échantillons de mars 2015. D'autre par on constate de même la présence de la famille des Rhodobacteraceae dans ces mêmes échantillons et leur absence au sein des échantillons de mars 2015. Cependant au sein des échantillons de septembre 2014 on constate tout de même que ces deux familles sont présentes et de façon abondante dans les profondeurs "surface" et "median" qui sont les deux profondeurs ayant moins de diversité en septembre et les plus distinctes de la surface. Autres que ces deux présences/absences majeures on dirait qu'au sein des familles la repartition est similaire avec peut être une présence légérement supérieure au sein des bactéries de la Clade I et des Actinomarinaceae dans les échantillons du fond. 
+
+D'autre part, les bactéries de la famille des Cyanobiaceae sont des bactéries similaires aux algues a propriétés photosynthétiques et colonisant la surface marine dans les mois chauds de l'année. Les bactéries Rhodobacteraceae sont des Protéobactéries, étant constitués des alphaprotéobactéries; bétaprotéobactéries et gammaprotéobactéries. Dont des bactéries pourpres(phototrophes).
+
+Comme on n'a pas réussi à assigner les espèces correctement à nos séquences nous allons faire une étude allant jusqu'au genre bactérien afin de voir d'autres possibles différences.
+
 ```{r}
 print(Genusplot)
 ```
@@ -99,13 +122,22 @@ print(Genusplot)
 
 # Filtrage taxonomique
 
+Nous avons tout de même observé une quantité non négligéable de familles non caractérisées. Afin de filtrer nos données d'éventuels erreurs de séquençage nous allons étudier l'abondance au sein des phylums. 
+
 ```{r}
 rank_names(ps)
 table(tax_table(ps)[, "Phylum"], exclude = NULL)
 ```
+
+Grâce à ces observatios on constate 12 phylums non caractérisés, cela étant peu probable on élimine ces séquences de notre objet phyloseq. 
+
 ```{r}
 ps <- subset_taxa(ps, !is.na(Phylum) & !Phylum %in% c("", "uncharacterized"))
 ```
+
+# Prévalence
+
+On souhaite maintenant effectuer une étude de prévalence et tout de même trier nos séquences par rapport à des éventuels erreurs de séquençage. On construit donc une table permettant l'étude de la prévalence en fonction des OTU présentes dans la table d'OTU de l'objet phyloseq contenant nos données. Cet étude va être effectué avec les phylum présents.
 
 ```{r}
 prevdf = apply(X = otu_table(ps),
@@ -118,6 +150,53 @@ prevdf = data.frame(Prevalence = prevdf,
 plyr::ddply(prevdf, "Phylum", function(df1){cbind(mean(df1$Prevalence),sum(df1$Prevalence))})
 ```
 
+En fonction des résultats obtenus et se basant notamment sur la prévalence totale (mais tenant en compte les prévalences moyennes), j'ai décidé d'éliminer des données les phylums suivants: Campilobacterota; Dependentiae; Elusimicrobiota; Firmicutes; Hydrogenedentes; NB1-j et les Fibrobacterota. Ces phylums ont desprévalences totales inférieures ou égales à 5 et avec des moyennes de prévalence comprises entre 1 et 2. 
+
+```{r}
+filterPhyla = c("Campilobacterota", "Dependentiae","Elusimicrobiota", "Firmicutes","Hydrogenedentes", "NB1-j", "Fibrobacterota")
+ps1 = subset_taxa(ps, !Phylum %in% filterPhyla)
+ps1
+``` 
+
+On analyse les prévalences des phylums restants de façon graphique.
 
 
+```{r}
+prevdf1 = subset(prevdf, Phylum %in% get_taxa_unique(ps1, "Phylum"))
+ggplot(prevdf1, aes(TotalAbundance, Prevalence / nsamples(ps),color=Phylum)) +
+  # Include a guess for parameter
+  geom_hline(yintercept = 0.05, alpha = 0.5, linetype = 2) +  geom_point(size = 2, alpha = 0.7) +
+  scale_x_log10() +  xlab("Total Abundance") + ylab("Prevalence [Frac. Samples]") +
+  facet_wrap(~Phylum) + theme(legend.position="none")
+```
 
+On constate que la plupart de ces phylums on une abondance et une représentation très importante. D'autre part, en ayant mis un taux de prévalence supérieur au 5% on voit que la plupart des phylums continue a avoir une prévalence importante et que même ua sein des phylums moins prévalents, en enlèvant ce taux inférieur à 5% on continue à retrouver une représentation au sein des échantillons. 
+
+```{r}
+prevalenceThreshold = 0.05 * nsamples(ps)
+prevalenceThreshold
+
+keepTaxa = rownames(prevdf1)[(prevdf1$Prevalence >= prevalenceThreshold)]
+ps2 = prune_taxa(keepTaxa, ps)
+```
+
+# Analyse par PCoA
+
+Afin de faire une étude comparative (béta-diversité) des échantillons on va tracer une PCoA permettant de différencier nos points par couleur (en fonction de la profondeur d'échantillonnage) et par forme (en fonction de la date d'échantillonnage). Cela a le but d'étudier la dissimilarité (ou distance) entre nos échantillons. 
+
+```{r}
+pslog <- transform_sample_counts(ps, function(x) log(1 + x))
+PCoA <- ordinate(pslog, method = "PCoA", distance = "bray")
+
+plot_ordination(pslog, PCoA, color = "Depth", shape = "Day", title= "PCoA_Dist_Bray") +
+  labs(col = "Depth", shape="Day") + geom_point(size=3)
+```
+
+```{r}
+out.dpcoa.log <- ordinate(pslog, method = "DPCoA")
+evals <- out.dpcoa.log$eig
+plot_ordination(pslog, out.dpcoa.log, color = "depth", label= "SampleID",
+                  shape = "day") +
+  labs(col = "Binned Age", shape = "Litter")+
+  coord_fixed(sqrt(evals[2] / evals[1]))
+```

@@ -87,11 +87,11 @@ Nous avons voulu sur cette partie essayer de créer une ordination basée sur la
 
 ```{r}
 ordination_test <- transform_sample_counts(ps, function(otu) otu/sum(otu))
-ord.nmds.bray <- ordinate(ordiantion_test, method="NMDS", distance="bray")
+ord.nmds.bray <- ordinate(ordination_test, method="NMDS", distance="bray")
 ```
 
 ```{r}
-plot_ordination(ps.prop, ord.nmds.bray, color="Day", shape="Depth", title="Bray NMDS") + geom_point(size=4)
+plot_ordination(ordination_test, ord.nmds.bray, color="Day", shape="Depth", title="Bray NMDS") + geom_point(size=4)
 ```
 
 Le fait de travailler avec peu d'échantillons n'a pas permis de tracer une ordination par la méthode NMDS très effective... Cependant on peut observer qu'au sein des échantillons de mars on confirme ne retrouver qu'un seul groupe, alors que pour les données de septembre 2014 il semblerait avoir des sous groupes distincts. 
@@ -105,7 +105,7 @@ ps.top20 <- transform_sample_counts(ps, function(OTU) OTU/sum(OTU))
 ps.top20 <- prune_taxa(top20, ps.top20)
 Genusplot <- plot_bar(ps.top20, x="Day", fill="Genus") + facet_wrap(~Depth, scales="free_x")
 Familyplot <- plot_bar(ps.top20, x="Day", fill="Family") + facet_wrap(~Depth, scales="free_x")
-print (Family)
+print (Familyplot)
 
 ``` 
 
@@ -119,6 +119,9 @@ Comme on n'a pas réussi à assigner les espèces correctement à nos séquences
 print(Genusplot)
 ```
 
+On constate ici que les genres le plus abondant sont les bactéries des Clade Ia (Alphaprotéobactéries) des protéobactéries. Les différences observées en septembre sont issues de l'absence de SUP05 (Gammaprotéobactéries) et présence abondante des synechococcus CC9902 (Cyanobacteria) et Ascidiaceihabitans (Alphaprotéobactérie). 
+
+Les alpha-protéobactéries étant des microorganismes majeurement phototrophes. Et les cyanobactéries étant phototrophes et oxygéniques (ce qui explique une abondance plutôt en surface). La très légère présence en profondeur n'est vue que en septrembre, ce qui pourrait indiquer qu ces échantillons correspondent à de l'ARN prélévé de cellules mortes ayant pu couler vers le fond marin. 
 
 # Filtrage taxonomique
 
@@ -192,11 +195,25 @@ plot_ordination(pslog, PCoA, color = "Depth", shape = "Day", title= "PCoA_Dist_B
   labs(col = "Depth", shape="Day") + geom_point(size=3)
 ```
 
-```{r}
-out.dpcoa.log <- ordinate(pslog, method = "DPCoA")
-evals <- out.dpcoa.log$eig
-plot_ordination(pslog, out.dpcoa.log, color = "depth", label= "SampleID",
-                  shape = "day") +
-  labs(col = "Binned Age", shape = "Litter")+
-  coord_fixed(sqrt(evals[2] / evals[1]))
-```
+Grâce à cette ordination on constate à nouveau le fait suivant: 
+Les échantillons effectués en mars sont plus similaires entre eux, sans que la profondeur d'échantillonnage ait vraiment d'effet sur l'échantillon. Que ce soit sur l'axe 1 ou l'axe 2 on voit une proximité et un regroupement des points appartenant à mars 2015. En ce qui concerne les échantillons de septembre 2014 on constate qu'il y a une grande dissimilarité venant de la profondeur d'échantillonnage. Les échantillons de surface et de profondeur moyenne restent quand même proches (sur les axes 1 et 2) même si il y a quand même une différence entre les échantillons. Cependant la différence est plus grande avec les échantillons du fond. Cette dissimilaritée est réfletée sur les axes 1 et 2. 
+En ce qui concerne la différence entre les échantillons de mars 2015 et septembre 2014 on constate de même que les échantillons de surface et median de septembre sont plus proches, par rapport à l'axe 2. Or par rapport à l'axe 1 la similarité est plus importante avec les échantillons  trouvés en profondeur. 
+
+# QUESTIONS
+
+1/ quelles sont les influences relative de la profondeur et de la saison sur la structure des communautes planctoniques de la rade de Brest
+2/ Quels sont les biomarkeurs de saison (hivers et ete) ?
+
+## Question 1
+
+ Par rapport aux résultats obtenus en faisant l'étude avec la PCoA ainsi que sur la richesse avec les indices de Sharon et de Simpson, on peut déduire que en fin d'été et vers l'hiver la richesse est des communautés planctoniques est plus importante en profondeur mais on retrouve des communautés différentes en surface ayant des capacités phototrophes qui permettent d'utiliser un métabolise altérnatif. D'autre part en fin d'hiver-début de printemps on constate que la richesse est similaire de façon hétérogène et qu'il n'y a pas vraiment de différence entre les échantillons en fonction de la profondeur. D'autre part ces organismes phototrophes sont moins présents. 
+
+Ces résultats pourraient être dus à des phénomènes de up-welling dans la colonne d'eau. Des changements saisonniers comme la température pourraient avoir un impact dans l'abondance et apparition des organismes (ainsi que les cycles de nutriments marins). Ces hypothèses auraient pu être testées et étudiées si on avait eu accès à des paramètres comme la température de l'eau; la salinité; les concentrations en nutriments... et en traçant des ordinations altérnatives afin de trouver le(s) paramètre(s) ayant influencé le plus la structure de la communauté (à travers des PCA ou PCoA par exemple). D'autre part on aurait pu avoir fait une analyse plus poussée avec une DPCoA après avoir tracé un arbre phylogénétique qui aurait pu permettre de mettre en évidence des différences plus nettes en ce qui concerne la structure de la communauté. 
+
+## Question 2
+
+Il semblerait par rapport à ce que l'on a vu sur la question précédente ainsi que
+sur ce qu'il a été vu sur les histogrammes d'étude de l'alpha diversité que pour l'été (mesuré par rapport à septembre) les biomarqueurs seraient les Cyanobiaceae et les Rhodobacteraceae, des familles bactériennes regroupant des bactéries phototrophes notamment. En ce qui concerne l'hiver c'est notamment l'absence de ces phylums qui est important, mais il y a une prédominance importante des bactéries des phylums de la Clade I et des Actinomarinaceae.
+
+D'autre part par rapport à l'étude des genres bactériens on observe la différence plus importante marquée au niveau des genres plus abondants, dont on voit que ce sont des cyanobactéries en surface et en été qui marquent une différence importante (probablement correspondant aux blooms plancktoniques d'été). 
+
